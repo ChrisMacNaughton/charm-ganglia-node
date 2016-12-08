@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
 import sys
-import hashlib
 import charmhelpers.core.hookenv as hookenv
 import charmhelpers.core.host as host
 import charmhelpers.fetch as fetch
@@ -22,13 +21,6 @@ def render_template(template_name, context, template_dir=TEMPLATES_DIR):
     )
     template = templates.get_template(template_name)
     return template.render(context)
-
-
-def checksum(sfile):
-    sha256 = hashlib.sha256()  # IGNORE:E1101
-    with open(sfile, 'r') as source:
-        sha256.update(source.read())
-    return sha256.hexdigest()
 
 
 GMOND = "ganglia-monitor"
