@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import sys
 import charmhelpers.core.hookenv as hookenv
@@ -8,7 +8,7 @@ import charmhelpers.fetch as fetch
 try:
     import jinja2
 except ImportError:
-    fetch.apt_install('python-jinja2', fatal=True)
+    fetch.apt_install('python3-jinja2', fatal=True)
     import jinja2
 
 
