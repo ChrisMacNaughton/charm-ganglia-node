@@ -1,0 +1,18 @@
+series: xenial
+services:
+  ganglia-node:
+    charm: ganglia-node
+    num_units: 0
+  ganglia:
+    charm: cs:xenial/ganglia
+    num_units: 1
+    options:
+      gridname: bundle_test
+  ubuntu:
+    charm: cs:xenial/ubuntu
+    num_units: 1
+relations:
+  - - "ganglia:node"
+    - "ganglia-node:node"
+  - - "ganglia-node:juju-info"
+    - "ubuntu:juju-info"
