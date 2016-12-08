@@ -24,7 +24,7 @@ def render_template(template_name, context, template_dir=TEMPLATES_DIR):
 
 
 GMOND = "ganglia-monitor"
-PACKAGES = [GMOND]
+PACKAGES = [GMOND, 'ganglia-modules-linux']
 GMOND_CONF = "/etc/ganglia/gmond.conf"
 
 RESTART_MAP = {
@@ -96,11 +96,16 @@ def configure_gmond():
         gmond.write(render_template("gmond.conf", context))
 
 
-@hooks.hook('install')
+@hooks.hook('install',
+            'upgrade-charm')
 def install_hook():
     fetch.add_source(hookenv.config('source'),
                      hookenv.config('key'))
-    fetch.apt_install(PACKAGES, fatal=True)
+    pkgs = fetch.filter_installed_packages(PACKAGES)
+    if pkgs:
+        hookenv.status_set('maintenance',
+                           'Installing ganglia packages')
+        fetch.apt_install(pkgs, fatal=True)
 
 
 @hooks.hook('node-relation-joined')
