@@ -24,6 +24,7 @@ def render_template(template_name, context, template_dir=TEMPLATES_DIR):
 
 
 GMOND = "ganglia-monitor"
+PACKAGES = [GMOND]
 GMOND_CONF = "/etc/ganglia/gmond.conf"
 
 RESTART_MAP = {
@@ -31,6 +32,22 @@ RESTART_MAP = {
 }
 
 hooks = hookenv.Hooks()
+
+
+@hooks.hook('update-status')
+def assess_status():
+    '''Assess status of current unit'''
+    hookenv.application_version_set(fetch.get_upstream_version(GMOND))
+    if not hookenv.relation_ids("node"):
+        hookenv.status_set('blocked',
+                           'Missing relation to ganglia')
+        return
+
+    if host.service_running(GMOND):
+        hookenv.status_set('active', 'Unit is ready')
+    else:
+        hookenv.status_set('blocked',
+                           '{} not running'.format(GMOND))
 
 
 def get_principle_unit():
@@ -83,10 +100,10 @@ def configure_gmond():
 def install_hook():
     fetch.add_source(hookenv.config('source'),
                      hookenv.config('key'))
-    fetch.apt_install("ganglia-monitor")
+    fetch.apt_install(PACKAGES, fatal=True)
 
 
-@hookenv.hook('node-relation-joined')
+@hooks.hook('node-relation-joined')
 def node_joined_hook():
     hookenv.relation_set(service=get_service_name())
 
@@ -95,4 +112,6 @@ if __name__ == '__main__':
     try:
         hooks.execute(sys.argv)
     except hookenv.UnregisteredHookError as e:
-        hookenv.log('Unknown hook {} - skipping.'.format(e))
+        hookenv.log('Unknown hook {} - skipping.'.format(e),
+                    hookenv.DEBUG)
+    assess_status()
