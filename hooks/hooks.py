@@ -67,11 +67,11 @@ def get_service_name():
         return None
 
 
-@host.restart_on_change(RESTART_MAP)
 @hooks.hook('node-relation-changed',
             'node-relation-departed',
             'node-relation-broken',
             'config-changed')
+@host.restart_on_change(RESTART_MAP)
 def configure_gmond():
     if (not hookenv.relation_ids('juju-info') or
             not hookenv.relation_ids("node")):
