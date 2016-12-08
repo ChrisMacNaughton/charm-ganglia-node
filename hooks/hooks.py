@@ -1,19 +1,27 @@
 #!/usr/bin/python
 
-import subprocess
-import os
 import sys
 import hashlib
-from utils import (
-    juju_log,
-    relation_get,
-    relation_set,
-    relation_ids,
-    relation_list,
-    render_template,
-    install,
-    configure_source,
+import charmhelpers.core.hookenv as hookenv
+import charmhelpers.core.host as host
+import charmhelpers.fetch as fetch
+
+try:
+    import jinja2
+except ImportError:
+    fetch.apt_install('python-jinja2', fatal=True)
+    import jinja2
+
+
+TEMPLATES_DIR = 'templates'
+
+
+def render_template(template_name, context, template_dir=TEMPLATES_DIR):
+    templates = jinja2.Environment(
+        loader=jinja2.FileSystemLoader(template_dir)
     )
+    template = templates.get_template(template_name)
+    return template.render(context)
 
 
 def checksum(sfile):
@@ -22,106 +30,77 @@ def checksum(sfile):
         sha256.update(source.read())
     return sha256.hexdigest()
 
-# Services
+
 GMOND = "ganglia-monitor"
-
-# Service Commands
-START = "start"
-STOP = "stop"
-RESTART = "restart"
-RELOAD = "reload"
-
-
-def control(service_name, action):
-    cmd = [
-        "service",
-        service_name,
-        action
-        ]
-    if action == RESTART:
-        if subprocess.call(cmd) != 0:
-            control(service_name, START)
-    else:
-        subprocess.call(cmd)
-
 GMOND_CONF = "/etc/ganglia/gmond.conf"
 
+RESTART_MAP = {
+    GMOND_CONF: [GMOND]
+}
 
+hooks = hookenv.Hooks()
+
+
+def get_principle_unit():
+    '''Get the unit id from the principle charm'''
+    for rid in hookenv.relation_ids('juju-info'):
+        for unit in hookenv.related_units(rid):
+            return unit
+    return None
+
+
+def get_service_name():
+    '''Get service name from principle charm'''
+    p_unit = get_principle_unit()
+    if p_unit:
+        return p_unit.split('/')[0]
+    else:
+        return None
+
+
+@host.restart_on_change(RESTART_MAP)
+@hooks.hook('node-relation-changed',
+            'node-relation-departed',
+            'node-relation-broken',
+            'config-changed')
 def configure_gmond():
-    juju_log("INFO", "Configuring new ganglia node")
-    _rid = relation_ids("juju-info")[0]
-    principle_unit = get_principle_name()
-    service_name = principle_unit.split('/')[0]
-    _rids = relation_ids("node")
-    masters = []
-    if _rids:
-        # Configure as head unit and send data to masters
-        for _rid in _rids:
-            for _master in relation_list(_rid):
-                masters.append(relation_get('private-address',
-                                            _master, _rid))
-    context = {
-        "service_name": service_name,
-        "masters": masters,
-        "unit_name": principle_unit
-        }
+    if (not hookenv.relation_ids('juju-info') or
+            not hookenv.relation_ids("node")):
+        hookenv.log("Required relations not complete, deferring configuration")
+        return
 
-    before = checksum(GMOND_CONF)
+    hookenv.log("Configuring new ganglia node")
+
+    # Configure as head unit and send data to masters
+    masters = []
+    for _rid in hookenv.relation_ids("node"):
+        for _master in hookenv.related_units(_rid):
+            masters.append(hookenv.relation_get('private-address',
+                                                _master, _rid))
+    context = {
+        "service_name": get_service_name(),
+        "masters": masters,
+        "unit_name": get_principle_unit()
+    }
+
     with open(GMOND_CONF, "w") as gmond:
         gmond.write(render_template("gmond.conf", context))
 
-    if len(masters) > 0:
-        if before != checksum(GMOND_CONF):
-            control(GMOND, RESTART)
-    else:
-        control(GMOND, STOP)
 
-# Workaround as unable to query locally scoped
-# juju relationship for principle service name
-PRINCIPLE = "/etc/juju_principle_name"
-
-
-def store_principle_name():
-    ## Store principle unit name for use later
-    unit_name = os.environ['JUJU_REMOTE_UNIT']
-    with open(PRINCIPLE, "w") as principle:
-        principle.write(unit_name)
-
-
-def get_principle_name():
-    principle_name = "unknown"
-    if os.path.exists(PRINCIPLE):
-        with open(PRINCIPLE, "r") as principle:
-            principle_name = principle.read().strip()
-    return principle_name
-
-
-def install_node():
-    install("ganglia-monitor")
-
-
-# Hook helpers for dict switching
+@hooks.hook('install')
 def install_hook():
-    configure_source()
-    install_node()
+    fetch.add_source(hookenv.config('source'),
+                     hookenv.config('key'))
+    fetch.apt_install("ganglia-monitor")
 
 
+@hookenv.hook('node-relation-joined')
 def node_joined_hook():
-    relation_set(service=get_principle_name().split('/')[0])
+    hookenv.relation_set(service=get_service_name())
 
-HOOK = os.path.basename(sys.argv[0])
 
-hooks = {
-    "install": install_hook,
-    "node-relation-changed": configure_gmond,
-    "node-relation-departed": configure_gmond,
-    "node-relation-broken": configure_gmond,
-    "upgrade-charm": configure_gmond,
-    "node-relation-joined": node_joined_hook,
-    "juju-info-relation-joined": store_principle_name
-}
-
-try:
-    hooks[HOOK]()
-except KeyError:
-    juju_log("ERROR", "Unsupported hook execution {}".format(HOOK))
+if __name__ == '__main__':
+    try:
+        hooks.execute(sys.argv)
+    except hookenv.UnregisteredHookError as e:
+        hookenv.log('Unknown hook {} - skipping.'.format(e))

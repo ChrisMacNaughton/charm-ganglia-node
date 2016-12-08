@@ -1,22 +1,21 @@
 options:
-    source:
-        type: string
-        default:
-        description: |
-            Optional configuration to support use of additional
-            sources such as:
-            .
-                - ppa:myteam/myppa
-                - cloud:folsom-proposed
-                - http://my.archive.com/ubuntu main
-            .
-            The last option should be used in conjunction with
-            the key configuration option.
-    key:
-        type: string
-        default:
-        description: |
-            Key to import to the apt keyring to support use
-            with arbitary source configuration from outside
-            of launchpad archives or PPA's
-
+  source:
+    type: string
+    default:
+    description: |
+      Optional configuration to support use of additional
+      sources such as:
+      .
+        - ppa:myteam/myppa
+        - cloud:folsom-proposed
+        - http://my.archive.com/ubuntu main
+      .
+      The last option should be used in conjunction with
+      the key configuration option.
+  key:
+    type: string
+    default:
+    description: |
+      Key to import to the apt keyring to support use
+      with arbitary source configuration from outside
+      of launchpad archives or PPA's
