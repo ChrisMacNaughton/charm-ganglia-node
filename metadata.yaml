@@ -12,6 +12,7 @@ tags:
   - performance
   - monitoring
 series:
+  - bionic
   - xenial
   - trusty
   - yakkety
